@@ -112,7 +112,7 @@ def main():
         print("6. Client confirm to receive a message from a users message box\n")
         print("7. Receipt messages \n");
         print("8. Checking the reception status of a sent message\n");
-        opt = input("Select an option: \n")
+        opt = input("Select an option: ")
         if opt == 1:
             uuid = input("Please insert your ID: ")
             createBox(con, uuid)
@@ -126,8 +126,8 @@ def main():
             u_id = input("Please insert the id of the user to list all messages: ")
             allBox(con, u_id)
         if opt == 5:
-            u_send = input("Please insert source id of the sender identifier: ")
-            u_dst = input("Please insert destination id of the receiver identifier: ")
+            u_send = input("Please insert the id of the sender: ")
+            u_dst = input("Please insert the id of the receiver: ")
             u_msg = raw_input("Please insert the message: ")
             sendBox(con, u_send, u_dst, u_msg)
         if opt == 6:
@@ -135,12 +135,12 @@ def main():
             msgid = raw_input("Please insert the message id: ")
             recvBox(con, u_id, msgid)
         if opt == 7:
-            u_id = input("Please insert the id of the message box of the receipt sender: ")
-            msgid = raw_input("Please insert the identifier of message for which a receipt is being sender: ")
+            u_id = input("Please insert the id of the receipt sender: ")
+            msgid = raw_input("Please insert the identifier of message of the receipt sender: ")
             recpt = raw_input("Please insert msg: ")
             receiptBox(con, u_id, msgid, recpt)
         if opt == 8:
-            u_id = input("Please insert the identifier of the receipt box: ")
+            u_id = input("Please insert the user id to check the reception: ")
             msg_id = raw_input("Please insert the message identifier: ")
             statusBox(con, u_id, msg_id)
 
