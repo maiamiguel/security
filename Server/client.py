@@ -2,6 +2,7 @@ import sys
 import logging
 import json
 from socket import *
+from server_registry import *
 HOST = "0.0.0.0"
 PORT = 8080
 
@@ -22,16 +23,21 @@ def createBox(sckt, uuid):
     create_msg['uuid'] = uuid
     try:
         sckt.sendall(json.dumps(create_msg)+'\r\n')
+        print("Box created successfully!")
     except:
         logging.exception("Couldn't create the box")
-    print("Box created successfully!")
 
-def listBox(sckt, user_id):
+def listBox(sckt):
     list_msg = dict()
     list_msg['type'] = "list"
-    list_msg['id'] = user_id
     try:
         sckt.sendall(json.dumps(list_msg)+'\r\n')
+
+        print("\nList of users id with message box:")
+
+        for a in registry.users.values():
+            print a["id"]
+
     except:
         logging.exception("Couldn't list the users")
 
@@ -41,6 +47,9 @@ def newBox(sckt, user_id):
     new_msg['id'] = user_id
     try:
         sckt.sendall(json.dumps(new_msg)+'\r\n')
+
+        print("New messages: " + ",".join(registry.userNewMessages(user_id)))
+
     except:
         logging.exception("Couldn't list the new messages")
 
@@ -50,6 +59,10 @@ def allBox(sckt, user_id):
     all_msg['id'] = user_id
     try:
         sckt.sendall(json.dumps(all_msg)+ '\r\n')
+
+        print("\nMessages of user %s " % user_id)
+        print("Received messages: " + ", ".join(registry.userAllMessages(user_id)))
+        print("Sent messages: " + ", ".join(registry.userSentMessages(user_id)))
     except:
         logging.exception("Couldn't list all messages")
 
@@ -63,6 +76,7 @@ def sendBox(sckt, src_id, dst_id, msg):
 
     try:
         sckt.sendall(json.dumps(send_box)+ '\r\n')
+        print("\nSent message to %s" % dst_id)
     except:
         logging.exception("Couldn't send message")
 
@@ -74,10 +88,12 @@ def recvBox(sckt, user_id, msg_id):
 
     try:
         sckt.sendall(json.dumps(recv_box)+ '\r\n')
+
+        print(registry.recvMessage(user_id, msg_id))
     except:
         logging.exception("Couldn't confirm to receive message")
 
-def receiptBox(sckt, user_id, msg_id, receipt): #INCORRET
+def receiptBox(sckt, user_id, msg_id, receipt):
     receipt_box = dict()
     receipt_box['type'] = "receipt"
     receipt_box['id'] = user_id
@@ -97,6 +113,8 @@ def statusBox(sckt, user_id, msg_id):
 
     try:
         sckt.sendall(json.dumps(stat_box)+ '\r\n')
+        print("\nStatus:")
+        print(registry.getReceipts(user_id, msg_id))
     except:
         logging.exception("Couldn't checking the reception status")
 
@@ -104,21 +122,21 @@ def statusBox(sckt, user_id, msg_id):
 def main():
     con = connect(HOST, PORT)
     while True:
-        print("1. Create message box\n")
-        print("2. List users with a message box\n")
-        print("3. List the new messages\n")
-        print("4. List all messages\n")
-        print("5. Client send a message to a user's message box\n")
-        print("6. Client confirm to receive a message from a users message box\n")
-        print("7. Receipt messages \n");
-        print("8. Checking the reception status of a sent message\n");
+        print("\n1. Create message box")
+        print("2. List users with a message box")
+        print("3. List the new messages")
+        print("4. List all messages")
+        print("5. Client send a message to a user's message box")
+        print("6. Client confirm to receive a message from a users message box")
+        print("7. Receipt messages");
+        print("8. Checking the reception status of a sent message");
         opt = input("Select an option: ")
         if opt == 1:
             uuid = input("Please insert your ID: ")
             createBox(con, uuid)
         if opt == 2:
-            u_id = input("Please insert the id of the user to be listed: ")
-            listBox(con, u_id)
+            #u_id = input("Please insert the id of the user to be listed: ")
+            listBox(con)
         if opt == 3:
             u_id = input("Please insert the id of the user with the new messages: ")
             newBox(con, u_id)
@@ -146,4 +164,5 @@ def main():
 
 
 if __name__ == '__main__':
+    registry = ServerRegistry()
     main()
