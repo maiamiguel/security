@@ -2,7 +2,6 @@ import sys
 import logging
 import json
 from socket import *
-from server_registry import *
 HOST = "0.0.0.0"
 PORT = 8080
 
@@ -34,9 +33,7 @@ def listBox(sckt):
         sckt.sendall(json.dumps(list_msg)+'\r\n')
 
         print("\nList of users id with message box:")
-
-        for a in registry.users.values():
-            print a["id"]
+        print(sckt.recv(8192))
 
     except:
         logging.exception("Couldn't list the users")
@@ -48,7 +45,7 @@ def newBox(sckt, user_id):
     try:
         sckt.sendall(json.dumps(new_msg)+'\r\n')
 
-        print("New messages: " + ",".join(registry.userNewMessages(user_id)))
+        print(sckt.recv(8192))
 
     except:
         logging.exception("Couldn't list the new messages")
@@ -60,9 +57,8 @@ def allBox(sckt, user_id):
     try:
         sckt.sendall(json.dumps(all_msg)+ '\r\n')
 
-        print("\nMessages of user %s " % user_id)
-        print("Received messages: " + ", ".join(registry.userAllMessages(user_id)))
-        print("Sent messages: " + ", ".join(registry.userSentMessages(user_id)))
+        print(sckt.recv(8192))
+
     except:
         logging.exception("Couldn't list all messages")
 
@@ -88,8 +84,6 @@ def recvBox(sckt, user_id, msg_id):
 
     try:
         sckt.sendall(json.dumps(recv_box)+ '\r\n')
-
-        print(registry.recvMessage(user_id, msg_id))
     except:
         logging.exception("Couldn't confirm to receive message")
 
@@ -114,7 +108,7 @@ def statusBox(sckt, user_id, msg_id):
     try:
         sckt.sendall(json.dumps(stat_box)+ '\r\n')
         print("\nStatus:")
-        print(registry.getReceipts(user_id, msg_id))
+        print(sckt.recv(8192))
     except:
         logging.exception("Couldn't checking the reception status")
 
@@ -164,5 +158,4 @@ def main():
 
 
 if __name__ == '__main__':
-    registry = ServerRegistry()
     main()
