@@ -4,6 +4,7 @@ import json
 from socket import *
 HOST = "0.0.0.0"
 PORT = 8080
+MAX_BUFSIZE = 64 * 1024
 
 def connect(host, port):
     try:
@@ -20,9 +21,13 @@ def createBox(sckt, uuid):
     create_msg = dict()
     create_msg['type'] = "create"
     create_msg['uuid'] = uuid
+
     try:
         sckt.sendall(json.dumps(create_msg)+'\r\n')
-        print("Box created successfully!")
+        data = json.loads(sckt.recv(MAX_BUFSIZE))
+        for x in data.values():
+            print("id: %s" %x)
+
     except:
         logging.exception("Couldn't create the box")
 
@@ -32,8 +37,12 @@ def listBox(sckt):
     try:
         sckt.sendall(json.dumps(list_msg)+'\r\n')
 
-        print("\nList of users id with message box:")
-        print(sckt.recv(8192))
+        print("\nList of users with message box:")
+
+        data = json.loads(sckt.recv(MAX_BUFSIZE)).values()
+        for x in data:
+            for i in x:
+                print(i["uuid"])
 
     except:
         logging.exception("Couldn't list the users")
@@ -44,9 +53,11 @@ def newBox(sckt, user_id):
     new_msg['id'] = user_id
     try:
         sckt.sendall(json.dumps(new_msg)+'\r\n')
-
-        print(sckt.recv(8192))
-
+        print("\nNew messages:")
+        data = json.loads(sckt.recv(MAX_BUFSIZE))
+        for a in data.values():
+            for val in a:
+                print(val)
     except:
         logging.exception("Couldn't list the new messages")
 
@@ -57,7 +68,16 @@ def allBox(sckt, user_id):
     try:
         sckt.sendall(json.dumps(all_msg)+ '\r\n')
 
-        print(sckt.recv(8192))
+        data = json.loads(sckt.recv(MAX_BUFSIZE))
+        print("Received messages: ")
+        for a in data.values():
+            for x in a[0]:
+                print(x)
+
+        print("\nSent messages: ")
+        for a in data.values():
+            for x in a[1]:
+                print(x)
 
     except:
         logging.exception("Couldn't list all messages")
@@ -73,6 +93,7 @@ def sendBox(sckt, src_id, dst_id, msg):
     try:
         sckt.sendall(json.dumps(send_box)+ '\r\n')
         print("\nSent message to %s" % dst_id)
+        print(sckt.recv(MAX_BUFSIZE))
     except:
         logging.exception("Couldn't send message")
 
@@ -84,6 +105,7 @@ def recvBox(sckt, user_id, msg_id):
 
     try:
         sckt.sendall(json.dumps(recv_box)+ '\r\n')
+        print(sckt.recv(MAX_BUFSIZE))
     except:
         logging.exception("Couldn't confirm to receive message")
 
@@ -96,6 +118,7 @@ def receiptBox(sckt, user_id, msg_id, receipt):
 
     try:
         sckt.sendall(json.dumps(receipt_box)+ '\r\n')
+        print(sckt.recv(MAX_BUFSIZE))
     except:
         logging.exception("Couldn't confirm to receipt message")
 
@@ -108,7 +131,7 @@ def statusBox(sckt, user_id, msg_id):
     try:
         sckt.sendall(json.dumps(stat_box)+ '\r\n')
         print("\nStatus:")
-        print(sckt.recv(8192))
+        print(sckt.recv(MAX_BUFSIZE))
     except:
         logging.exception("Couldn't checking the reception status")
 
