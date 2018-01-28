@@ -88,7 +88,7 @@ class ServerRegistry:
         return self.getUser(uid) is not None
 
     def getUser(self, uid):
-        if isinstance(uid, int):
+        if isinstance(uid, str):
             if uid in self.users.keys():
                 return self.users[uid]
             return None

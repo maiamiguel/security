@@ -1,8 +1,11 @@
 import logging
+import base64
 from log import *
 from server_registry import *
 from server_client import *
 import json
+from cc_utils import *
+from M2Crypto import X509
 
 class ServerActions:
     def __init__(self):
@@ -60,8 +63,25 @@ class ServerActions:
             client.sendResult({"error": "wrong message format"})
             return
 
-        uuid = data['uuid']
-        if not isinstance(uuid, int):
+        if 'cert' not in data.keys():
+            log(logging.ERROR, "No \"cert\" field in \"create\" message: " +
+                json.dumps(data))
+            client.sendResult({"error": "wrong message format"})
+
+        if 'signature' not in data.keys():
+            log(logging.ERROR, "No \"signature\" field in \"create\" message " +
+                json.dumps(data))
+            client.sendResult({"error": "wrong message format"})
+
+        signature = base64.b64decode(data['signature'])
+        uuid = base64.b64decode(data['uuid'])
+        cert  = data['cert']
+        if not verify_signature(uuid, signature, cert):
+            log(logging.ERROR, "Signature not valid")
+            client.sendResult({"error": "Signature not valid"})
+            return
+
+        if not isinstance(uuid, str):
             log(logging.ERROR, "No valid \"uuid\" field in \"create\" message: " +
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
