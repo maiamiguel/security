@@ -14,12 +14,10 @@ DESC_FILENAME = "description"
 
 
 class UserDescription(dict):
-
     def __init__(self, uid, description=None):
         dict.__init__(self, id=uid, description=description)
         self.id = uid
         self.description = description
-
 
 class ServerRegistry:
 
@@ -88,13 +86,13 @@ class ServerRegistry:
         return self.getUser(uid) is not None
 
     def getUser(self, uid):
-        if isinstance(uid, str):
+        if isinstance(uid, int):
             if uid in self.users.keys():
                 return self.users[uid]
             return None
 
         if isinstance(uid, str):
-            for user in users:
+            for user in self.users:
                 if user.id == uid:
                     return user
         return None

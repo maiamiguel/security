@@ -1,12 +1,14 @@
 import sys
 import logging
 import json
-import hashlib
+import rsa
 import base64
-import pickle
+import os
 from socket import *
 from cc_utils import *
+from crypto_utils import *
 from cryptography.hazmat.primitives import hashes
+from Crypto.Hash import SHA256
 HOST = "0.0.0.0"
 PORT = 8080
 MAX_BUFSIZE = 64 * 1024
@@ -23,12 +25,14 @@ def connect(host, port):
     return connection
 
 
-def createBox(sckt, uuid, cert, signature):
+def createBox(sckt, uuid, cert, pubk, pubk_hash, pubk_hash_sig):
     create_msg = dict()
     create_msg['type'] = "create"
     create_msg['uuid'] = base64.b64encode(uuid)
     create_msg['cert'] = cert.as_pem()
-    create_msg['signature'] = base64.b64encode(signature)
+    create_msg['pubk'] = pubk
+    create_msg['pubk_hash'] = base64.b64encode(pubk_hash)
+    create_msg['pubk_hash_sig'] = base64.b64encode(pubk_hash_sig)
     try:
         sckt.sendall(json.dumps(create_msg) + '\r\n')
         data = json.loads(sckt.recv(MAX_BUFSIZE))
@@ -150,17 +154,29 @@ def statusBox(sckt, user_id, msg_id):
         logging.exception("Couldn't checking the reception status")
 
 
-def register(con):
+def login(con):
     sckt = con
     cert = get_certificate("CITIZEN AUTHENTICATION CERTIFICATE")
-    uuid = cert.get_fingerprint("sha256")
-    signature = sign(uuid, "CITIZEN AUTHENTICATION KEY")
+    cc_serial_number = cert.get_serial_number()
+    if not os.path.isfile("%d.pub" % cc_serial_number):
+        print("\nGenerating pair of RSA keys...")
+        generateKeys(4096, str(cc_serial_number))
+        print("\nDone.")
+        print("\nCreating message box...")
+        with open("%d.pub" % cc_serial_number) as pubk_file:
+            pubk = pubk_file.read()
 
-    createBox(sckt, uuid, cert, signature)
+        uuid = cert.get_fingerprint("sha256")
+        pubk_hash = SHA256.new(pubk).hexdigest()
+        pubk_hash_sig = sign(pubk_hash, "CITIZEN AUTHENTICATION KEY")
+        createBox(sckt, uuid, cert, pubk, pubk_hash, pubk_hash_sig)
+        print("Success")
+        optionsList()
+    else:
+        optionsList()
 
-def options_list():
+def optionsList():
     while True:
-        print("\n1. Create message box")
         print("2. List users with a message box")
         print("3. List the new messages")
         print("4. List all messages")
@@ -169,9 +185,6 @@ def options_list():
         print("7. Receipt messages")
         print("8. Checking the reception status of a sent message")
         opt = input("Select an option: ")
-        if opt == 1:
-            uuid = input("Please insert your ID: ")
-            createBox(con, uuid)
         if opt == 2:
             #u_id = input("Please insert the id of the user to be listed: ")
             listBox(con)
@@ -203,19 +216,6 @@ def options_list():
             u_id = input("Please insert the user id to check the reception: ")
             msg_id = raw_input("Please insert the message identifier: ")
             statusBox(con, u_id, msg_id)
-
-
-def login(con):
-    while True:
-        print("1. Login\n")
-        print("2. New User\n")
-        opt = input("Select an option: \n")
-        if opt == 1:
-            # cenas
-            options_list()
-        if opt == 2:
-            register(con)
-
 
 def main():
     con = connect(HOST, PORT)

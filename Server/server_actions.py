@@ -18,7 +18,8 @@ class ServerActions:
             'recv': self.processRecv,
             'create': self.processCreate,
             'receipt': self.processReceipt,
-            'status': self.processStatus
+            'status': self.processStatus,
+            'request_pubk': self.request_pubk
         }
 
         self.registry = ServerRegistry()
@@ -54,6 +55,9 @@ class ServerActions:
         except Exception, e:
             logging.exception("Could not handle request")
 
+    def request_pubk(self, user_id):
+        pass
+
     def processCreate(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
 
@@ -68,17 +72,30 @@ class ServerActions:
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
 
-        if 'signature' not in data.keys():
-            log(logging.ERROR, "No \"signature\" field in \"create\" message " +
+        if 'pubk' not in data.keys():
+            log(logging.ERROR, "No \"pubk\" field in \"create\" message " +
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
 
-        signature = base64.b64decode(data['signature'])
+        if 'pubk_hash' not in data.keys():
+            log(logging.ERROR, "No \"pubk_hash\" field in \"create\" message " +
+                json.dumps(data))
+            client.sendResult({"error": "wrong message format"})
+
+        if 'pubk_hash_sig' not in data.keys():
+            log(logging.ERROR, "No \"pubk_hash_sig\" field in \"create\" message " +
+                json.dumps(data))
+            client.sendResult({"error": "wrong message format"})
+
+        pubk_hash = base64.b64decode(data['pubk_hash'])
+        pubk_hash_sig = base64.b64decode(data['pubk_hash_sig'])
         uuid = base64.b64decode(data['uuid'])
+        pubk = data['pubk']
         cert  = data['cert']
-        if not verify_signature(uuid, signature, cert):
+
+        if not verify_signature(pubk_hash, pubk_hash_sig, cert):
             log(logging.ERROR, "Signature not valid")
-            client.sendResult({"error": "Signature not valid"})
+            client.sendResult({"error": "Pubk signature is not valid"})
             return
 
         if not isinstance(uuid, str):

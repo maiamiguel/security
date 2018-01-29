@@ -2,8 +2,10 @@ import PyKCS11
 import M2Crypto
 import sys
 from M2Crypto import X509
+from Crypto.Hash import SHA256
 
 path = "/usr/local/lib/libpteidpkcs11.so"
+#publicKey = rsa.PublicKey.load_pkcs1_openssl_pem(cert.get_pubkey().get_rsa().as_pem())
 
 def get_certificate(label):
     flag    = False
@@ -50,6 +52,7 @@ def sign(data, label):
     return ret
 
 def verify_signature(original, signed, cert_str):
+    print(cert_str)
     cert = X509.load_cert_string(cert_str)
     pkey = cert.get_pubkey()
     pkey.verify_init()
