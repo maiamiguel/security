@@ -56,3 +56,9 @@ def verify_signature(original, signed, cert_str):
     pkey.verify_init()
     pkey.verify_update(original)
     return pkey.verify_final(signed)
+
+def getSerialNumber(cert):
+    try:
+        return cert.get_serial_number()
+    except:
+        return

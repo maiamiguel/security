@@ -184,7 +184,7 @@ class ServerRegistry:
 
             i += 1
 
-    def sendMessage(self, src, dst, msg, receipt):
+    def sendMessage(self, src, dst, data, receipt):
         nr = "0"
         src = str(src)
         dst = str(dst)
@@ -192,7 +192,7 @@ class ServerRegistry:
         try:
             path = os.path.join(self.userMessageBox(dst), src + "_")
             nr = self.newFile(path)
-            self.saveOnFile(path + nr, msg)
+            self.saveOnFile(path + nr, json.dumps(data))
 
             result = [src + "_" + nr]
             path = os.path.join(self.userReceiptBox(src), dst + "_")

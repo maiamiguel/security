@@ -5,6 +5,7 @@ from server_registry import *
 from server_client import *
 import json
 from cc_utils import *
+from crypto_utils import *
 from M2Crypto import X509
 
 class ServerActions:
@@ -161,7 +162,7 @@ class ServerActions:
     def processSend(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
 
-        if not set(data.keys()).issuperset(set({'src', 'dst', 'msg', 'msg'})):
+        if not set(data.keys()).issuperset(set({'src', 'dst', 'msg', 'copy'})):
             log(logging.ERROR,
                 "Badly formated \"send\" message: " + json.dumps(data))
             client.sendResult({"error": "wrong message format"})
@@ -185,7 +186,7 @@ class ServerActions:
 
         # Save message and copy
 
-        response = self.registry.sendMessage(srcId, dstId, msg, copy)
+        response = self.registry.sendMessage(srcId, dstId, data, copy)
 
         client.sendResult({"result": response})
 
