@@ -1,0 +1,15 @@
+asn1crypto==0.24.0
+cffi==1.11.4
+cryptography==2.1.4
+enum34==1.1.6
+idna==2.6
+ipaddress==1.0.19
+M2Crypto==0.27.0
+pyasn1==0.4.2
+pycparser==2.18
+pycrypto==2.6.1
+PyKCS11==1.4.4
+rsa==3.4.2
+six==1.11.0
+typing==3.6.4
+
