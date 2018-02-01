@@ -20,7 +20,7 @@ class ServerActions:
             'create': self.processCreate,
             'receipt': self.processReceipt,
             'status': self.processStatus,
-            'request_pubk': self.request_pubk
+            'userdetails': self.getUserDetails
         }
 
         self.registry = ServerRegistry()
@@ -56,8 +56,23 @@ class ServerActions:
         except Exception, e:
             logging.exception("Could not handle request")
 
-    def request_pubk(self, user_id):
-        pass
+    def getUserDetails(self, data, client):
+        if 'uid' not in data.keys():
+            log(logging.ERROR, "No \"uid\" field in \"UserDetails\" message: " +
+                json.dumps(data))
+            client.sendResult({"error": "wrong message format"})
+            return
+
+        uid = data["uid"]
+
+        user = self.registry.getUser(uid)
+        pubk = user['description']['pubk']
+        cert = user['description']['cert']
+        pubk_hash = user['description']['pubk_hash']
+        pubk_signature =  user['description']['pubk_hash_sig']
+        client.sendResult({"pubk": pubk, "cert": cert, "pubk_hash": pubk_hash, "pubk_signature": pubk_signature})
+
+
 
     def processCreate(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -93,6 +108,17 @@ class ServerActions:
         uuid = base64.b64decode(data['uuid'])
         pubk = data['pubk']
         cert  = data['cert']
+
+        print("sadiojjjjjjjjjjjjjjjj")
+        print(pubk_hash)
+        print("sdaodassdasdasda")
+        print(pubk_hash_sig)
+        pubk_hash_check = SHA256.new(pubk).hexdigest()
+
+        if not (pubk_hash_check == pubk_hash):
+            log(logging.ERROR, "Public key was corrupted")
+            client.sendResult({"error": "Pub key was corrupted"})
+            return
 
         if not verify_signature(pubk_hash, pubk_hash_sig, cert):
             log(logging.ERROR, "Signature not valid")
@@ -192,6 +218,7 @@ class ServerActions:
 
     def processRecv(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
+        print(data)
 
         if not set({'id', 'msg'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"recv\" message: " +
@@ -221,6 +248,7 @@ class ServerActions:
 
     def processReceipt(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
+        print(data)
 
         if not set({'id', 'msg', 'receipt'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"receipt\" message: " +
@@ -229,7 +257,7 @@ class ServerActions:
 
         fromId = int(data["id"])
         msg = str(data['msg'])
-        receipt = str(data['receipt'])
+        receipt = base64.b64decode(str(data['receipt']))
 
         if not self.registry.messageWasRed(str(fromId), msg):
             log(logging.ERROR, "Unknown, or not yet red, message for \"receipt\" request " + json.dumps(data))

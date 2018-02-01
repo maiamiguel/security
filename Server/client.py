@@ -9,7 +9,6 @@ from cc_utils import *
 from crypto_utils import *
 from cryptography.hazmat.primitives import hashes
 from Crypto.Hash import SHA256
-from server_registry import *
 HOST = "0.0.0.0"
 PORT = 8080
 MAX_BUFSIZE = 64 * 1024
@@ -54,9 +53,7 @@ def listUsers(sckt):
         print("\nList of users with message box:")
 
         data = json.loads(sckt.recv(MAX_BUFSIZE)).values()
-        for x in data:
-            for i in x:
-                print(i["uuid"])
+        print(data)
 
     except:
         logging.exception("Couldn't list the users")
@@ -117,26 +114,37 @@ def send(sckt, src_id, dst_id, msg, copy, aes_key, signature, msg_digest):
     except:
         logging.exception("Couldn't send message")
 
+def receipt(sckt, own_id, msg_id, receipt):
+    recpt = dict()
+    recpt['type'] = "receipt"
+    recpt['id'] = own_id
+    recpt['msg'] = msg_id
+    recpt['receipt'] = base64.b64encode(receipt)
+    try:
+        sckt.sendall(json.dumps(recpt) + '\r\n')
+    except:
+        logging.exception("Couldn't confirm to receipt message")
 
 def recv(sckt, user_id, msg_id):
-    recv_box = dict()
-    recv_box['type'] = "recv"
-    recv_box['id'] = user_id
-    recv_box['msg'] = msg_id
+    receive = dict()
+    receive['type'] = "recv"
+    receive['id'] = user_id
+    receive['msg'] = msg_id
 
     try:
-        sckt.sendall(json.dumps(recv_box) + '\r\n')
+        sckt.sendall(json.dumps(receive) + '\r\n')
     except:
         logging.exception("Couldn't confirm to receive message")
 
-    registry = ServerRegistry()
-    user = registry.getUser(user_id)
+
     own_cert = get_certificate("CITIZEN AUTHENTICATION CERTIFICATE")
+    print("\nSubject")
+    print(own_cert.get_subject())
     privk = rsa.PrivateKey.load_pkcs1(getOwnPrivK(getSerialNumber(own_cert)))
     server_ans = json.loads(sckt.recv(MAX_BUFSIZE))
     server_ans_data = json.loads(server_ans["result"][1])
     sender_uid = server_ans_data["src"]
-    cert = getUserDetails(sender_uid)["cert"]
+    cert = getUserDetails(sckt, sender_uid)["cert"]
     aes_key = base64.b64decode(server_ans_data["aes_key"])
     msg_digest = base64.b64decode(server_ans_data["msg_digest"])
     signature = base64.b64decode(server_ans_data["signature"])
@@ -152,27 +160,20 @@ def recv(sckt, user_id, msg_id):
         print("The message was not modified")
     else:
         print("The message was modified. Something is wrong.")
-
-    if not verify_signature(msg_d, signature, cert):
-        log(logging.ERROR, "Signature not valid")
         return
 
-    print(msg_d)
+    if not verify_signature(msg_d, signature, cert):
+        print("\nSignature not valid")
+        return
+    else:
+        print("\nSignature is valid.")
 
+    print("\nSigning the receipt")
+    recpt = sign(msg_d, "CITIZEN AUTHENTICATION KEY")
 
-def receipt(sckt, user_id, msg_id, receipt):
-    receipt_box = dict()
-    receipt_box['type'] = "receipt"
-    receipt_box['id'] = user_id
-    receipt_box['msg'] = msg_id
-    receipt_box['receipt'] = receipt
-
-    try:
-        sckt.sendall(json.dumps(receipt_box) + '\r\n')
-        print(sckt.recv(MAX_BUFSIZE))
-    except:
-        logging.exception("Couldn't confirm to receipt message")
-
+    print("\nSending it to the sender.")
+    receipt(sckt, user_id, msg_id, recpt)
+    print("Done")
 
 def status(sckt, user_id, msg_id):
     stat_box = dict()
@@ -185,19 +186,42 @@ def status(sckt, user_id, msg_id):
         print("\nStatus:")
         print(sckt.recv(MAX_BUFSIZE))
     except:
-        logging.exception("Couldn't checking the reception status")
+        logging.exception("Couldn't check the reception status")
 
 
-def getUserDetails(uid):
+def getUserDetails(sckt, uid):
+    getDetails = dict()
+    getDetails['type'] = "userdetails"
+    getDetails['uid'] = uid
     try:
-        registry = ServerRegistry()
-        user = registry.getUser(uid)
-        pubk = user['description']['pubk']
-        cert = user['description']['cert']
+        sckt.sendall(json.dumps(getDetails) + '\r\n')
+        info = json.loads(sckt.recv(MAX_BUFSIZE))
+        cert = info["cert"]
+        pubk = info["pubk"]
+        pubk_hash = base64.b64decode(info["pubk_hash"])
+        pubk_signature = base64.b64decode(info["pubk_signature"])
+        #print(pubk_signature)
+        print(pubk_hash)
+        print("\n---------\n")
+        pubk_test_hash = SHA256.new(pubk).hexdigest()
+        print(pubk_test_hash)
 
-        return {"pubk": pubk, "cert": cert}
-    except:
+        if (pubk_test_hash == pubk_hash):
+            print("Pub key is not wrong!!!!!!!!!")
+        else:
+            print("wrong bitch")
+
+        if (verify_signature(pubk_hash, pubk_signature, cert)):
+            print("Oi lol")
+        else:
+            print("shit")
+
+        return {"pubk": pubk, "cert": cert, "pubk_hash": pubk_hash, "pubk_signature": pubk_signature}
+
+    except Exception as e:
+        print(e)
         return
+
 
 def getOwnPubK(cc_serial_number):
     try:
@@ -219,22 +243,29 @@ def login(con):
     cert = get_certificate("CITIZEN AUTHENTICATION CERTIFICATE")
     cc_serial_number = getSerialNumber(cert)
     if not os.path.isfile("%d.pub" % cc_serial_number):
-        print("\nGenerating pair of RSA keys...")
-        generateKeys(4096, str(cc_serial_number))
-        print("\nDone.")
-        print("\nGenerating AES key...")
-        with open("%d.txt" % cc_serial_number, 'w') as key_file:
-            key_file.write(getAESKey())
-        print("\nCreating message box...")
-        pubk = getOwnPubK(cc_serial_number)
-        uuid = cert.get_fingerprint("sha256")
-        pubk_hash = SHA256.new(pubk).hexdigest()
-        print("\nSigning public key...")
-        pubk_hash_sig = sign(pubk_hash, "CITIZEN AUTHENTICATION KEY")
-        create(sckt, uuid, cert, pubk, pubk_hash, pubk_hash_sig)
-
-        print("Success")
-        optionsList(sckt)
+        try:
+            print("\nGenerating pair of RSA keys...")
+            generateKeys(4096, str(cc_serial_number))
+            print("\nDone.")
+            print("\nGenerating AES key...")
+            with open("%d.txt" % cc_serial_number, 'w') as key_file:
+                key_file.write(getAESKey())
+            print("\nDone")
+            pubk = getOwnPubK(cc_serial_number)
+            uuid = cert.get_fingerprint("sha256")
+            pubk_hash = SHA256.new(pubk).hexdigest()
+            print(pubk_hash)
+            print("\nSigning public key...")
+            pubk_hash_sig = sign(pubk_hash, "CITIZEN AUTHENTICATION KEY")
+            print(pubk_hash_sig)
+            print("\nCreating message box...")
+            create(sckt, uuid, cert, pubk, pubk_hash, pubk_hash_sig)
+            print("Success")
+            optionsList(sckt)
+        except Exception as e:
+            print("\n")
+            print(e)
+            return
     else:
         optionsList(sckt)
 
@@ -246,7 +277,8 @@ def sendMessage(con):
     cert = get_certificate("CITIZEN AUTHENTICATION CERTIFICATE")
     aes_k = getAESKey()
     aes = AESUtils(aes_k)
-    dest_pk = rsa.PublicKey.load_pkcs1(getUserDetails(dest_id)["pubk"])
+    #print(getUserDetails(con, dest_id))
+    dest_pk = rsa.PublicKey.load_pkcs1(getUserDetails(con, dest_id)["pubk"])
     msg_digest = SHA256.new(message).hexdigest()
     c_message = aes.encryptAES(message)
     aes_key = encryptRSA(dest_pk, aes_k)
@@ -263,13 +295,12 @@ def optionsList(con):
         print("3. List the new messages")
         print("4. List all messages")
         print("5. Send a message")
-        print("6. Send receipt")
-        print("7. Receipt messages")
+        print("6. Read a message")
         print("8. Checking the reception status of a sent message")
         opt = input("Select an option: ")
         if opt == 2:
             #u_id = input("Please insert the id of the user to be listed: ")
-            listBox(con)
+            listUsers(con)
         if opt == 3:
             u_id = input(
                 "Please insert the id of the user with the new messages: ")
@@ -282,14 +313,8 @@ def optionsList(con):
             sendMessage(con)
         if opt == 6:
             sender_id = input("\nPlease insert the sender ID: ")
-            msg_id = raw_input("\nPlease insert the message ID:  ")
+            msg_id = raw_input("\nPlease insert the message ID: ")
             recv(con, sender_id, msg_id)
-        if opt == 7:
-            u_id = input("Please insert the id of the receipt sender: ")
-            msgid = raw_input(
-                "Please insert the identifier of message of the receipt sender: ")
-            recpt = raw_input("Please insert msg: ")
-            receipt(con, u_id, msgid, recpt)
         if opt == 8:
             u_id = input("Please insert the user id to check the reception: ")
             msg_id = raw_input("Please insert the message identifier: ")

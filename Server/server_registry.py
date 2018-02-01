@@ -56,7 +56,6 @@ class ServerRegistry:
                     logging.exception(
                         "Cannot load user description from " + path)
                     sys.exit(1)
-
                 self.users[uid] = UserDescription(uid, description)
 
     def saveOnFile(self, path, data):
@@ -83,7 +82,8 @@ class ServerRegistry:
         return os.path.exists(os.path.join(self.userReceiptBox(uid), message))
 
     def userExists(self, uid):
-        return self.getUser(uid) is not None
+            print(self.users)
+            return self.getUser(uid) is not None
 
     def getUser(self, uid):
         if isinstance(uid, int):
@@ -92,9 +92,9 @@ class ServerRegistry:
             return None
 
         if isinstance(uid, str):
-            for user in self.users:
-                if user.id == uid:
-                    return user
+            for user in self.users.keys():
+                if self.users[user]["description"]["uuid"] == uid:
+                    return self.users[user]
         return None
 
     def addUser(self, description):
