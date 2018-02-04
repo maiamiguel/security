@@ -81,61 +81,73 @@ def create(sckt, uuid, cert, pubk, pubk_hash, pubk_hash_sig, checksum):
         logging.exception("Couldn't create the box")
 
 
-def listUsers(sckt):
+def listUsers(sckt, checksum):
     list_msg = dict()
     list_msg['type'] = "list"
+    list_msg['checksum'] = base64.b64encode(checksum)
     try:
         sckt.sendall(json.dumps(list_msg) + '\r\n')
 
         print("\nList of users with message box:")
 
         data = json.loads(sckt.recv(MAX_BUFSIZE))
-        results = data["result"]
-        print("#################USERS LIST#################")
-        for key in results.keys():
-            user = results[str(key)]
-            cert = X509.load_cert_string(user["description"]["cert"])
-            name = get_user_name(cert)
-            print("ID: %s" % user["id"])
-            print("Name: %s" % name)
-        print("#################USERS LIST#################")
+        if checksum == base64.b64decode(data["checksum"]):
+            results = data["result"]
+            print("#################USERS LIST#################")
+            for key in results.keys():
+                user = results[str(key)]
+                cert = X509.load_cert_string(user["description"]["cert"])
+                name = get_user_name(cert)
+                print("ID: %s" % user["id"])
+                print("Name: %s" % name)
+            print("#################USERS LIST#################")
+        else:
+            print("Error. Bad server response")
+            sys.exit()
     except:
         logging.exception("Couldn't list the users")
 
 
-def listNewMessages(sckt, user_id):
+def listNewMessages(sckt, user_id, checksum):
     new_msg = dict()
     new_msg['type'] = "new"
     new_msg['id'] = user_id
+    new_msg["checksum"] = base64.b64encode(checksum)
     try:
         sckt.sendall(json.dumps(new_msg) + '\r\n')
-        print("\nNew messages:")
         data = json.loads(sckt.recv(MAX_BUFSIZE))
-        for a in data.values():
-            for val in a:
-                print(val)
+        print(data)
+        if checksum == base64.b64decode(data["checksum"]):
+            print("\nNew messages IDs:")
+            for result in data["result"]:
+                print(result)
+        else:
+            print("Error. Bad server response.")
+            sys.exit()
     except:
         logging.exception("Couldn't list the new messages")
 
 
-def listAllMessages(sckt, user_id):
+def listAllMessages(sckt, user_id, checksum):
     all_msg = dict()
     all_msg['type'] = "all"
     all_msg['id'] = user_id
+    all_msg['checksum'] = base64.b64encode(checksum)
     try:
         sckt.sendall(json.dumps(all_msg) + '\r\n')
 
         data = json.loads(sckt.recv(MAX_BUFSIZE))
-        print("Received messages: ")
-        for a in data.values():
-            for x in a[0]:
-                print(x)
+        if checksum == base64.b64decode(data["checksum"]):
+            print("Received messages: ")
+            for result in data["result"][0]:
+                print(result)
 
-        print("\nSent messages: ")
-        for a in data.values():
-            for x in a[1]:
-                print(x)
-
+            print("\nSent messages: ")
+            for result in data["result"][1]:
+                print(result)
+        else:
+            print("Error. Bad server response.")
+            sys.exit()
     except:
         logging.exception("Couldn't list all messages")
 
@@ -403,15 +415,18 @@ def optionsList(con):
         print("-----------------------------------------------------------------")
         opt = input("Select an option: ")
         if opt == 1:
-            listUsers(con)
+            checksum = getChecksum()
+            listUsers(con, checksum)
         if opt == 2:
             u_id = input(
                 "Please insert the id of the user with the new messages: ")
-            listNewMessages(con, u_id)
+            checksum = getChecksum()
+            listNewMessages(con, u_id, checksum)
         if opt == 3:
             u_id = input(
                 "Please insert the id of the user to list all messages: ")
-            listAllMessages(con, u_id)
+            checksum = getChecksum()
+            listAllMessages(con, u_id, checksum)
         if opt == 4:
             sendMessage(con)
         if opt == 5:

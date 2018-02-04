@@ -182,9 +182,9 @@ class ServerActions:
 
         log(logging.DEBUG, "List %s" % userStr)
 
-        userList = self.registry.listUsers(user)
+        userList = self.registry.getUsers()
 
-        client.sendResult({"result": userList})
+        client.sendResult({"result": userList, "checksum": data["checksum"]})
 
     def processNew(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -200,7 +200,7 @@ class ServerActions:
             return
 
         client.sendResult(
-            {"result": self.registry.userNewMessages(user)})
+            {"result": self.registry.userNewMessages(user), "checksum": data["checksum"]})
 
     def processAll(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -216,7 +216,7 @@ class ServerActions:
             return
 
         client.sendResult({"result": [self.registry.userAllMessages(
-            user), self.registry.userSentMessages(user)]})
+            user), self.registry.userSentMessages(user)], "checksum": data["checksum"]})
 
     def processSend(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
