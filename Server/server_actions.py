@@ -7,6 +7,10 @@ import json
 from cc_utils import *
 from crypto_utils import *
 from M2Crypto import X509
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import dh
+
 
 class ServerActions:
     def __init__(self):
@@ -21,9 +25,12 @@ class ServerActions:
             'receipt': self.processReceipt,
             'status': self.processStatus,
             'userdetails': self.getUserDetails
+            #'connection': self.connection
         }
 
         self.registry = ServerRegistry()
+        self.shared_secret = ""
+        self.private_session_key = ""
 
     def handleRequest(self, s, request, client):
         """Handle a request from a client socket.
@@ -55,6 +62,30 @@ class ServerActions:
 
         except Exception, e:
             logging.exception("Could not handle request")
+    """
+    def connection(self, data, client):
+        #parameters = dh.generate_parameters(generator=2, key_size=512, backend=default_backend())
+        pubkey_check_sign = base64.b64decode(data["pubk"])
+        pubkey = serialization.load_pem_public_key(base64.b64decode(data["pubk"]), backend=default_backend())
+        cert = data["cert"]
+        pubkey_signed = base64.b64decode(data["pkey_signed"])
+        parameters = serialization.load_pem_parameters(base64.b64decode(data["parameters"]), backend=default_backend())
+
+        if not verify_signature(pubkey_check_sign, pubkey_signed, cert):
+            log(logging.ERROR, "Signature not valid")
+            client.sendResult({"error": "DH Pubk signature is not valid"})
+            return
+
+
+        private_session_key = parameters.generate_private_key()
+        server_pubkey = parameters.generate_private_key().public_key()
+        server_pubkey_to_send = base64.b64encode(server_pubkey.public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo))
+        print(server_pubkey.public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo))
+        shared_secret = private_session_key.exchange(pubkey)
+        print(shared_secret)
+
+        client.sendResult({"pubkey": server_pubkey_to_send})
+        """
 
     def getUserDetails(self, data, client):
         if 'uid' not in data.keys():
@@ -63,16 +94,16 @@ class ServerActions:
             client.sendResult({"error": "wrong message format"})
             return
 
-        uid = data["uid"]
+        uid = int(data["uid"])
 
         user = self.registry.getUser(uid)
+        print(user)
         pubk = user['description']['pubk']
         cert = user['description']['cert']
         pubk_hash = user['description']['pubk_hash']
-        pubk_signature =  user['description']['pubk_hash_sig']
-        client.sendResult({"pubk": pubk, "cert": cert, "pubk_hash": pubk_hash, "pubk_signature": pubk_signature})
-
-
+        pubk_signature = user['description']['pubk_hash_sig']
+        client.sendResult({"pubk": pubk, "cert": cert,
+                           "pubk_hash": pubk_hash, "pubk_signature": pubk_signature, "checksum": data["checksum"]})
 
     def processCreate(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -103,16 +134,17 @@ class ServerActions:
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
 
+        if 'checksum' not in data.keys():
+            log(logging.ERROR, "No \"checksum\" field in \"create\" message " +
+                json.dumps(data))
+            client.sendResult({"error": "wrong message format"})
+
         pubk_hash = base64.b64decode(data['pubk_hash'])
         pubk_hash_sig = base64.b64decode(data['pubk_hash_sig'])
         uuid = base64.b64decode(data['uuid'])
         pubk = data['pubk']
-        cert  = data['cert']
+        cert = data['cert']
 
-        print("sadiojjjjjjjjjjjjjjjj")
-        print(pubk_hash)
-        print("sdaodassdasdasda")
-        print(pubk_hash_sig)
         pubk_hash_check = SHA256.new(pubk).hexdigest()
 
         if not (pubk_hash_check == pubk_hash):
@@ -137,7 +169,7 @@ class ServerActions:
             return
 
         me = self.registry.addUser(data)
-        client.sendResult({"result": me.id})
+        client.sendResult({"result": me.id, "checksum": data["checksum"]})
 
     def processList(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -183,7 +215,8 @@ class ServerActions:
             client.sendResult({"error": "wrong message format"})
             return
 
-        client.sendResult({"result": [self.registry.userAllMessages(user), self.registry.userSentMessages(user)]})
+        client.sendResult({"result": [self.registry.userAllMessages(
+            user), self.registry.userSentMessages(user)]})
 
     def processSend(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -196,7 +229,7 @@ class ServerActions:
         srcId = int(data['src'])
         dstId = int(data['dst'])
         msg = str(data['msg'])
-        copy = str(data['copy'])
+        copy = data['copy']
 
         if not self.registry.userExists(srcId):
             log(logging.ERROR,
@@ -214,11 +247,10 @@ class ServerActions:
 
         response = self.registry.sendMessage(srcId, dstId, data, copy)
 
-        client.sendResult({"result": response})
+        client.sendResult({"result": response, "checksum": data["checksum"]})
 
     def processRecv(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
-        print(data)
 
         if not set({'id', 'msg'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"recv\" message: " +
@@ -244,11 +276,10 @@ class ServerActions:
 
         response = self.registry.recvMessage(fromId, msg)
 
-        client.sendResult({"result": response})
+        client.sendResult({"result": response, "checksum": data["checksum"]})
 
     def processReceipt(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
-        print(data)
 
         if not set({'id', 'msg', 'receipt'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"receipt\" message: " +
@@ -257,7 +288,7 @@ class ServerActions:
 
         fromId = int(data["id"])
         msg = str(data['msg'])
-        receipt = base64.b64decode(str(data['receipt']))
+        receipt = (data['receipt'])
 
         if not self.registry.messageWasRed(str(fromId), msg):
             log(logging.ERROR, "Unknown, or not yet red, message for \"receipt\" request " + json.dumps(data))
@@ -278,9 +309,10 @@ class ServerActions:
         msg = str(data["msg"])
 
         if(not self.registry.copyExists(fromId, msg)):
-            log(logging.ERROR, "Unknown message for \"status\" request: " + json.dumps(data))
+            log(logging.ERROR,
+                "Unknown message for \"status\" request: " + json.dumps(data))
             client.sendResult({"error", "wrong parameters"})
             return
 
         response = self.registry.getReceipts(fromId, msg)
-        client.sendResult({"result": response})
+        client.sendResult({"result": response, "checksum": data["checksum"]})

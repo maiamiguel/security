@@ -82,7 +82,6 @@ class ServerRegistry:
         return os.path.exists(os.path.join(self.userReceiptBox(uid), message))
 
     def userExists(self, uid):
-            print(self.users)
             return self.getUser(uid) is not None
 
     def getUser(self, uid):

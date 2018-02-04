@@ -62,3 +62,10 @@ def getSerialNumber(cert):
         return cert.get_serial_number()
     except:
         return
+
+def get_user_name(cert):
+    subj = cert.get_subject()
+    name_entry = subj.get_entries_by_nid(subj.nid['commonName'])
+    name = name_entry[0].get_data().as_text()
+    name = unicode(name, "ISO-8859-1")
+    return name
